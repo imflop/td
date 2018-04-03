@@ -134,7 +134,18 @@ def _main(option, remove, finish, add):
 
 if __name__ == '__main__':
     import sys
-    # TODO: check start with '-' go to main else add task to list
-    if 3 < len(sys.argv):
-        print(" ".join(sys.argv[1:]))
-    # _main()
+    prefixes = (
+        '-a', '-r', '-f', '-l', '-o', '-c', '--add', '--remove', '--finish',
+    )
+    if len(sys.argv[1:]) != 0:
+        text = " ".join(sys.argv[1:]).strip()
+        if text.startswith(prefixes):
+            _main()
+        else:
+            task_dict = TaskDict()
+            task_dict.add_task(text)
+            task_dict.print_task_list(task_status=False)
+    else:
+        click.echo(click.style(
+            "Next time to adding task type something ...", fg="red")
+        )
