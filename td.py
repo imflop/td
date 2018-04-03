@@ -1,3 +1,4 @@
+import sys
 import json
 import click
 from typing import Union
@@ -133,7 +134,6 @@ def _main(option, remove, finish, add):
 
 
 if __name__ == '__main__':
-    import sys
     prefixes = (
         '-a', '-r', '-f', '-l', '-o', '-c', '--add', '--remove', '--finish',
     )
