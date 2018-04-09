@@ -76,7 +76,7 @@ class TaskDict(object):
 
     def _write_data(self, td_data: dict):
         """ Flush data to disk """
-        with open("td.json", "w") as td_json_file:
+        with open(self.td_home_location, "w") as td_json_file:
             td_json_file.write(json.dumps(td_data, indent=4))
 
     def _show_icon_by_task_status(self, status: bool) -> str:
@@ -85,7 +85,7 @@ class TaskDict(object):
     def _show_nice_completed_date(self, completed_date: str) -> str:
         if completed_date != "":
             return "@done at {d}".format(d=datetime.strptime(
-                completed_date, '%Y-%m-%d %H:%M:%S').strftime('%Y-%m-%d %H:%M'))
+                completed_date, '%d-%m-%Y %H:%M:%S').strftime('%d-%m-%Y %H:%M'))
         else:
             return ""
 
@@ -112,6 +112,8 @@ class TaskDict(object):
             del self.td_task_list[str(task_id)]
             self._write_data(self.td_task_list)
             print("Task {id} successfully removed".format(id=task_id))
+        else:
+            print("Task {id} not found".format(id=task_id))
 
     def finish_task_by_id(self, task_id: int):
         """ Mark task as completed by task id """
@@ -123,6 +125,7 @@ class TaskDict(object):
         })
         self.td_task_list.update({task_id: current_task})
         self._write_data(self.td_task_list)
+        print("Task {id} successfully finished".format(id=task_id))
 
     def print_task_list(self, task_status: Union[bool, None]):
         if task_status is not None:
