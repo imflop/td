@@ -21,6 +21,7 @@ wheels/
 .installed.cfg
 *.egg
 MANIFEST
+.venv
 
 # Custom stuff
 *.json
