@@ -1,8 +1,9 @@
 import dataclasses as dc
+import hashlib
 import typing as t
-import os
+from collections import abc
 
-from enum import Enum
+from enum import IntEnum
 from pathlib import Path
 
 
@@ -10,7 +11,7 @@ class InvalidTDFile(Exception):
     ...
 
 
-class IOErrorNumber(int, Enum):
+class IOErrorNumber(IntEnum):
     NO_SUCH_FILE = 2
 
 
@@ -18,7 +19,7 @@ class IOErrorNumber(int, Enum):
 class TD:
     td_dir: str = dc.field(default=".td")
     td_name: str = dc.field(default="td")
-    tasks: str = dc.field(default="")
+    tasks: abc.MutableMapping[str, t.Any] = dc.field(init=False)
 
     def __post_init__(self):
         td_path = self._get_path_to_file()
@@ -29,8 +30,8 @@ class TD:
         self.tasks = self._read_tasks(td_path)
 
     def add(self, text: str) -> None:
-        self.tasks += f"{text} \n"
-        self.write(self.tasks)
+        task_id = hashlib.sha1(text.encode("utf-8")).hexdigest()
+        self.tasks[task_id] = {"id": task_id, "text": text}
 
     def edit(self) -> None:
         ...
@@ -39,7 +40,9 @@ class TD:
         ...
 
     def print_list(self) -> None:
-        ...
+        for tid, value in self.tasks.items():
+            print(f"TID: {tid}")
+            print(f"VALUE: {value}")
 
     def write(self, td_data: t.Any) -> None:
         with open(self._get_path_to_file(), "w") as f:
@@ -49,10 +52,12 @@ class TD:
         return Path.home().joinpath(f"{self.td_dir}/{self.td_name}")
 
     @staticmethod
-    def _read_tasks(path_to_file: Path) -> str:
+    def _read_tasks(path_to_file: Path) -> dict:
         try:
             with open(path_to_file, "r") as td_file:
-                return td_file.read()
+                raw_data = [task_line.strip() for task_line in td_file if task_line]
+                if not raw_data:
+                    return {}
         except IOError as e:
             if e.errno == IOErrorNumber.NO_SUCH_FILE:
                 with open(path_to_file, "r+") as td_file:
@@ -75,6 +80,8 @@ def main():
 
     for i in range(5):
         td.add(f"text {i}")
+
+    td.print_list()
 
 
 if __name__ == "__main__":
