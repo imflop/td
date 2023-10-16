@@ -15,7 +15,7 @@ class IOErrorNumber(IntEnum):
     NO_SUCH_FILE = 2
 
 
-@dc.dataclass(slots=True)
+@dc.dataclass(slots=True, frozen=True, repr=False)
 class TD:
     td_dir: str = dc.field(default=".td")
     td_name: str = dc.field(default="td")
@@ -27,10 +27,10 @@ class TD:
         if not Path(td_path).exists():
             td_path = self._create_folder_and_file(td_path)
 
-        self.tasks = self._read_tasks(td_path)
+        object.__setattr__(self, "tasks", self._read_tasks(td_path))
 
     def add(self, text: str) -> None:
-        task_id = hashlib.sha1(text.encode("utf-8")).hexdigest()
+        task_id = self._hash(text)
         self.tasks[task_id] = {"id": task_id, "text": text}
 
     def edit(self) -> None:
@@ -40,31 +40,16 @@ class TD:
         ...
 
     def print_list(self) -> None:
-        for tid, value in self.tasks.items():
-            print(f"TID: {tid}")
-            print(f"VALUE: {value}")
+        for i, (key, value) in enumerate(self.tasks.items()):
+            print(f"{i}: ☐ {value['text']}")
 
-    def write(self, td_data: t.Any) -> None:
+    def write(self) -> None:
         with open(self._get_path_to_file(), "w") as f:
-            f.write(td_data)
+            for task_line in self._get_task_lines_to_write(self.tasks):
+                f.write(task_line)
 
     def _get_path_to_file(self) -> Path:
         return Path.home().joinpath(f"{self.td_dir}/{self.td_name}")
-
-    @staticmethod
-    def _read_tasks(path_to_file: Path) -> dict:
-        try:
-            with open(path_to_file, "r") as td_file:
-                raw_data = [task_line.strip() for task_line in td_file if task_line]
-                if not raw_data:
-                    return {}
-        except IOError as e:
-            if e.errno == IOErrorNumber.NO_SUCH_FILE:
-                with open(path_to_file, "r+") as td_file:
-                    td_file.write("")
-                    td_file.flush()
-                    td_file.seek(0)
-                    return td_file.read()
 
     @staticmethod
     def _create_folder_and_file(path_to_create: Path) -> Path:
@@ -74,12 +59,57 @@ class TD:
 
         return path
 
+    def _read_tasks(self, path_to_file: Path) -> dict:
+        try:
+            with open(path_to_file, "r") as td_file:
+                if not (
+                    raw_data := [
+                        task_line.strip() for task_line in td_file if task_line
+                    ]
+                ):
+                    return {}
+
+                tasks = map(self._get_tasks_from_raw_lines, raw_data)
+
+                return {task["id"]: task for task in tasks}
+        except IOError as e:
+            if e.errno == IOErrorNumber.NO_SUCH_FILE:
+                with open(path_to_file, "r+") as td_file:
+                    td_file.write("")
+                    td_file.flush()
+                    td_file.seek(0)
+                    return td_file.read()
+
+    @staticmethod
+    def _get_tasks_from_raw_lines(task_as_line: str) -> abc.Mapping[str, t.Any]:
+        text, _, metadata = task_as_line.rpartition("|")
+        task = {"text": text.strip()}
+
+        for item in metadata.strip().split(";"):
+            label, value = item.split(":")
+            task[label.strip()] = value.strip()
+
+        return task
+
+    @staticmethod
+    def _hash(text) -> str:
+        return hashlib.sha1(text.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def _get_task_lines_to_write(tasks: abc.Mapping[str, t.Any]) -> abc.Sequence[str]:
+        return [f"{value['text']} | id:{key}\n" for key, value in tasks.items()]
+
+    @staticmethod
+    def _get_icon_by_status(task_status: int) -> str:
+        return "✔" if bool(task_status) else "☐"
+
 
 def main():
     td = TD()
 
     for i in range(5):
         td.add(f"text {i}")
+        td.write()
 
     td.print_list()
 
