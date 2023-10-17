@@ -2,6 +2,7 @@ import dataclasses as dc
 import hashlib
 import typing as t
 from collections import abc
+from datetime import datetime
 
 from enum import IntEnum
 from pathlib import Path
@@ -29,9 +30,11 @@ class TD:
 
         object.__setattr__(self, "tasks", self._read_tasks(td_path))
 
-    def add(self, text: str) -> None:
-        task_id = self._hash(text)
-        self.tasks[task_id] = {"id": task_id, "text": text}
+    def add(self, text: str, status: int = 0) -> None:
+        task_id = self._get_hash(text)
+        created_ts = datetime.now().timestamp()
+        prefix = self._get_prefix(task_id)
+        self.tasks[task_id] = {"id": task_id, "text": text, "status": status, "cts": created_ts, "prefix": prefix}
 
     def edit(self) -> None:
         ...
@@ -41,32 +44,28 @@ class TD:
 
     def print_list(self) -> None:
         for i, (key, value) in enumerate(self.tasks.items()):
-            print(f"{i}: ☐ {value['text']}")
+            icon = self._get_icon_by_status(int(value["status"]))
+            print(f"{i}: {icon} {value['text']}")
 
     def write(self) -> None:
-        with open(self._get_path_to_file(), "w") as f:
-            for task_line in self._get_task_lines_to_write(self.tasks):
-                f.write(task_line)
+        with open(self._get_path_to_file(), "w") as td_file:
+            task_lines = self._get_task_lines_to_write(self.tasks)
+            td_file.writelines(task_lines)
 
     def _get_path_to_file(self) -> Path:
-        return Path.home().joinpath(f"{self.td_dir}/{self.td_name}")
+        return Path.home().joinpath(self.td_dir, self.td_name)
 
     @staticmethod
     def _create_folder_and_file(path_to_create: Path) -> Path:
-        path = Path(path_to_create)
-        path.parent.mkdir()
-        path.write_text("")
+        path_to_create.parent.mkdir(parents=True, exist_ok=True)
+        path_to_create.touch(exist_ok=True)
 
-        return path
+        return path_to_create
 
-    def _read_tasks(self, path_to_file: Path) -> dict:
+    def _read_tasks(self, path_to_file: Path) -> abc.Mapping[str, t.Any]:
         try:
             with open(path_to_file, "r") as td_file:
-                if not (
-                    raw_data := [
-                        task_line.strip() for task_line in td_file if task_line
-                    ]
-                ):
+                if not (raw_data := [task_line.strip() for task_line in td_file if task_line]):
                     return {}
 
                 tasks = map(self._get_tasks_from_raw_lines, raw_data)
@@ -92,15 +91,22 @@ class TD:
         return task
 
     @staticmethod
-    def _hash(text) -> str:
+    def _get_hash(text) -> str:
         return hashlib.sha1(text.encode("utf-8")).hexdigest()
 
     @staticmethod
-    def _get_task_lines_to_write(tasks: abc.Mapping[str, t.Any]) -> abc.Sequence[str]:
-        return [f"{value['text']} | id:{key}\n" for key, value in tasks.items()]
+    def _get_prefix(task_id: str) -> str:
+        return task_id[:2]
 
     @staticmethod
-    def _get_icon_by_status(task_status: int) -> str:
+    def _get_task_lines_to_write(tasks: abc.Mapping[str, t.Any]) -> abc.Sequence[str]:
+        return [
+            f"{value['text']} | id:{key}; status:{value['status']}; ts:{value['cts']}; prefix:{value['prefix']}\n"
+            for key, value in tasks.items()
+        ]
+
+    @staticmethod
+    def _get_icon_by_status(task_status: int = 0) -> str:
         return "✔" if bool(task_status) else "☐"
 
 
