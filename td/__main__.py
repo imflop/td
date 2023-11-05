@@ -9,11 +9,15 @@ from pathlib import Path
 
 
 class InvalidTDFile(Exception):
-    ...
+    def __int__(self, path: Path, error: str):
+        super().__init__()
+        self.path = path
+        self.error = error
 
 
-class IOErrorNumber(IntEnum):
-    NO_SUCH_FILE = 2
+class TaskStatus(IntEnum):
+    ACTIVE = 0
+    FINISHED = 1
 
 
 @dc.dataclass(slots=True, frozen=True, repr=False)
@@ -30,22 +34,38 @@ class TD:
 
         object.__setattr__(self, "tasks", self._read_tasks(td_path))
 
-    def add(self, text: str, status: int = 0) -> None:
+    def __getitem__(self, prefix: str) -> str:
+        prefixes_task_ids_map = self._get_prefixes({k for k in self.tasks.keys()})
+
+        if not (task_id := prefixes_task_ids_map.get(prefix)):
+            raise
+
+        return task_id
+
+    def add(self, text: str, status: TaskStatus = TaskStatus.ACTIVE) -> None:
         task_id = self._get_hash(text)
         created_ts = datetime.now().timestamp()
-        prefix = self._get_prefix(task_id)
-        self.tasks[task_id] = {"id": task_id, "text": text, "status": status, "cts": created_ts, "prefix": prefix}
+        self.tasks[task_id] = {"id": task_id, "text": text, "status": status, "cts": created_ts}
 
     def edit(self) -> None:
         ...
 
-    def finish(self) -> None:
-        ...
+    def finish(self, prefix: str) -> None:
+        self.tasks[self[prefix]]["status"] = TaskStatus.FINISHED
+
+    def delete(self, prefix: str) -> None:
+        self.tasks.pop(self[prefix])
 
     def print_list(self) -> None:
-        for i, (key, value) in enumerate(self.tasks.items()):
+        tasks = self.tasks
+        prefixes_map = self._get_prefixes({k for k in self.tasks.keys()})
+
+        for prefix, task_id in prefixes_map.items():
+            tasks[task_id]["prefix"] = prefix
+
+        for key, value in tasks.items():
             icon = self._get_icon_by_status(int(value["status"]))
-            print(f"{i}: {icon} {value['text']}")
+            print(f"{value['prefix']}: {icon} {value['text']}")
 
     def write(self) -> None:
         with open(self._get_path_to_file(), "w") as td_file:
@@ -68,19 +88,14 @@ class TD:
                 if not (raw_data := [task_line.strip() for task_line in td_file if task_line]):
                     return {}
 
-                tasks = map(self._get_tasks_from_raw_lines, raw_data)
+                tasks = map(self._get_tasks_from_raw_line, raw_data)
 
                 return {task["id"]: task for task in tasks}
         except IOError as e:
-            if e.errno == IOErrorNumber.NO_SUCH_FILE:
-                with open(path_to_file, "r+") as td_file:
-                    td_file.write("")
-                    td_file.flush()
-                    td_file.seek(0)
-                    return td_file.read()
+            raise InvalidTDFile(path_to_file, e.strerror)
 
     @staticmethod
-    def _get_tasks_from_raw_lines(task_as_line: str) -> abc.Mapping[str, t.Any]:
+    def _get_tasks_from_raw_line(task_as_line: str) -> abc.Mapping[str, t.Any]:
         text, _, metadata = task_as_line.rpartition("|")
         task = {"text": text.strip()}
 
@@ -95,30 +110,30 @@ class TD:
         return hashlib.sha1(text.encode("utf-8")).hexdigest()
 
     @staticmethod
-    def _get_prefix(task_id: str) -> str:
-        return task_id[:2]
+    def _get_prefixes(existed_tasks_ids: abc.Set[str]) -> abc.Mapping[str, str]:
+        prefix_task_id_map = {}
+
+        for tid in existed_tasks_ids:
+            step = 2
+            for i in range(0, len(tid), step):
+                prefix = tid[i:i+step]
+
+                if prefix in prefix_task_id_map:
+                    # TODO: handle collision
+                    break
+                else:
+                    prefix_task_id_map[prefix] = tid
+                    break
+
+        return prefix_task_id_map
 
     @staticmethod
     def _get_task_lines_to_write(tasks: abc.Mapping[str, t.Any]) -> abc.Sequence[str]:
         return [
-            f"{value['text']} | id:{key}; status:{value['status']}; ts:{value['cts']}; prefix:{value['prefix']}\n"
+            f"{value['text']} | id:{key}; status:{value['status']}; ts:{value['cts']};\n"
             for key, value in tasks.items()
         ]
 
     @staticmethod
     def _get_icon_by_status(task_status: int = 0) -> str:
         return "✔" if bool(task_status) else "☐"
-
-
-def main():
-    td = TD()
-
-    for i in range(5):
-        td.add(f"text {i}")
-        td.write()
-
-    td.print_list()
-
-
-if __name__ == "__main__":
-    main()

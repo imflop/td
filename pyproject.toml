@@ -1,12 +1,12 @@
 [tool.poetry]
 name = "td"
 version = "2.0.0"
-description = "No dependencyОтсуNo dependency minimalistic cli todo app"
+description = "No dependency minimalistic cli todo app"
 authors = ["imflop <imflop@gmail.com>"]
 license = "BSD"
 
 [tool.poetry.dependencies]
-python = "^3.10"
+python = "^3.11"
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.1.3"
