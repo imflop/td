@@ -35,7 +35,7 @@ class TD:
         object.__setattr__(self, "tasks", self._read_tasks(td_path))
 
     def __getitem__(self, prefix: str) -> str:
-        prefixes_task_ids_map = self._get_prefixes({k for k in self.tasks.keys()})
+        prefixes_task_ids_map = self._get_prefixes(set(self.tasks.keys()))
 
         if not (task_id := prefixes_task_ids_map.get(prefix)):
             raise
@@ -58,7 +58,7 @@ class TD:
 
     def print_list(self) -> None:
         tasks = self.tasks
-        prefixes_map = self._get_prefixes({k for k in self.tasks.keys()})
+        prefixes_map = self._get_prefixes(set(self.tasks.keys()))
 
         for prefix, task_id in prefixes_map.items():
             tasks[task_id]["prefix"] = prefix
@@ -92,7 +92,7 @@ class TD:
 
                 return {task["id"]: task for task in tasks}
         except IOError as e:
-            raise InvalidTDFile(path_to_file, e.strerror)
+            raise InvalidTDFile(path_to_file, e.strerror) from e
 
     @staticmethod
     def _get_tasks_from_raw_line(task_as_line: str) -> abc.Mapping[str, t.Any]:
@@ -135,5 +135,6 @@ class TD:
         ]
 
     @staticmethod
-    def _get_icon_by_status(task_status: int = 0) -> str:
+    def _get_icon_by_status(task_status: TaskStatus = TaskStatus.ACTIVE) -> str:
         return "✔" if bool(task_status) else "☐"
+
